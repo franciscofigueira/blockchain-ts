@@ -1,15 +1,26 @@
 import { Block } from "./block.js";
 
+export type AccountDetails  = {
+    balance: number
+    nonce: number
+}
 export class Blockchain{
     blocks: Block[]
+    accounts: Map<string, AccountDetails>
 
-    constructor(blocks: Block[]){
+    constructor(blocks: Block[], accounts:
+            Map<string, AccountDetails>){
         this.blocks = blocks
+        this.accounts = accounts
     }
     
-    static initialize(genesisBlockData: string){
-        const genesisBlock = Block.initialize(0, genesisBlockData, "")
-        return new Blockchain([genesisBlock])
+    static initialize(initialBalances?:Map<string, AccountDetails>){
+        const genesisBlock = Block.initialize(0, [], "")
+        if (initialBalances){
+            return new Blockchain(  [genesisBlock],initialBalances)
+        }else{
+            return new Blockchain( [genesisBlock],new Map<string, AccountDetails>())
+        }
     }
 
     addBlock(block: Block){
@@ -24,6 +35,33 @@ export class Blockchain{
             throw new Error(`Last block hash is ${prevBlockHash},
             provided Block height is ${block.height}`)
         }
+
+        for(let i = 0; i< block.data.length; i++){
+            const tx = block.data[i]
+            const accountFrom = this.accounts.get(tx.from)
+            const accountTo = this.accounts.get(tx.to)
+            if(!accountFrom){
+                throw new Error(`Account from: ${tx.from}
+                 does not have any balance`)
+            }else if (accountFrom.balance < tx.amount ){
+                throw new Error(`Account from: ${tx.from}
+                    does not enough balance, current balance:
+                    ${accountFrom.balance}, transfer amount: ${tx.amount}`)
+            }else if(accountFrom.nonce !== tx.nonce){
+                throw new Error(`Invalid nonce, account current nonce:
+                 ${accountFrom.nonce}, tx nonce: ${tx.nonce}`)
+            }
+            accountFrom.balance -= tx.amount
+            accountFrom.nonce += 1
+            this.accounts.set(tx.from, accountFrom)
+            if(accountTo){
+                accountTo.balance += tx.amount
+                this.accounts.set(tx.to, accountTo)
+            }else{
+                this.accounts.set(tx.to,{nonce: 0, balance: tx.amount})
+            }
+        }
+
         this.blocks.push(block)
     }
 
@@ -36,7 +74,7 @@ export class Blockchain{
                 throw new Error(`Block ${i} height should be ${i},
                  found ${block.height}`)
             }
-            if(block.prevBlockHash != prevBlockHash){
+            if(block.prevBlockHash !== prevBlockHash){
                 throw new Error(`Block ${i} prevBlockHash should 
                 be ${prevBlockHash}, found${block.prevBlockHash}`)
             }
