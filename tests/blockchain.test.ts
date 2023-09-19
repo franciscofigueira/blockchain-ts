@@ -6,7 +6,7 @@ import {Wallet} from "../src/wallet.js";
 
 describe("Blockchain tests", () => {
     test('Blockchain should correctly initalize', () => {
-        const blockchain = Blockchain.initialize()
+        const blockchain = Blockchain.initialize("")
         expect(blockchain.blocks.length).toBe(1)
         expect(blockchain.blocks[0].height).toBe(0)
         blockchain.validateChain()
@@ -17,7 +17,7 @@ describe("Blockchain tests", () => {
         const wallet3 = Wallet.initialize()
         const balances = new Map<string,AccountDetails>()
         balances.set(wallet1.pubKey, {balance: 100, nonce: 0})
-        const blockchain = Blockchain.initialize(balances)
+        const blockchain = Blockchain.initialize("",balances)
         const tx =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 0)
         tx.sign(wallet1)
         const tx2 =  Transaction.initialize(wallet2.pubKey, wallet3.pubKey, 5, 0)
@@ -30,7 +30,7 @@ describe("Blockchain tests", () => {
         blockchain.validateChain()
     })
     test('Blockchain should not add block with incorrect height or prevBlockHash',() =>{
-        const blockchain = Blockchain.initialize()
+        const blockchain = Blockchain.initialize("")
         const blockWrongHeight = Block.initialize(2,[],blockchain.blocks[0].hash)
         const blockWrongPrevBlockHash = Block.initialize(1,[],"test")
         expect(() => blockchain.addBlock(blockWrongHeight)).toThrowError()
@@ -41,7 +41,7 @@ describe("Blockchain tests", () => {
         const wallet2 =  Wallet.initialize()
         const balances = new Map<string,AccountDetails>()
         balances.set(wallet1.pubKey, {balance: 100, nonce: 0})
-        const blockchain = Blockchain.initialize(balances)
+        const blockchain = Blockchain.initialize("",balances)
         const txInvalidBalance =  Transaction.initialize(wallet2.pubKey, wallet1.pubKey, 10, 0)
         txInvalidBalance.sign(wallet2)
         const blockInvalidBalance = Block.initialize(1,[txInvalidBalance],blockchain.blocks[0].hash)
@@ -50,5 +50,14 @@ describe("Blockchain tests", () => {
         const blockInvalidNonce = Block.initialize(1,[txInvalidNonce],blockchain.blocks[0].hash)
         expect(() => blockchain.addBlock(blockInvalidBalance)).toThrowError()
         expect(() => blockchain.addBlock(blockInvalidNonce)).toThrowError()
+    })
+    test('Blockchain should not allow block incorreclty mined',() =>{
+        const difficulty = "ffff"
+        const blockchain = Blockchain.initialize(difficulty)
+        const block = Block.initialize(1,[],blockchain.blocks[0].hash)
+        expect(() => blockchain.addBlock(block)).toThrowError()
+        block.mineBlock(difficulty)
+        blockchain.addBlock(block)
+        blockchain.validateChain()
     })
 })

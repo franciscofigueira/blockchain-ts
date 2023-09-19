@@ -7,19 +7,21 @@ export type AccountDetails  = {
 export class Blockchain{
     blocks: Block[]
     accounts: Map<string, AccountDetails>
+    blockDifficulty: string
 
-    constructor(blocks: Block[], accounts:
-            Map<string, AccountDetails>){
+    constructor( blocks: Block[], accounts:
+            Map<string, AccountDetails>,blockDifficulty: string){
         this.blocks = blocks
         this.accounts = accounts
+        this.blockDifficulty = blockDifficulty
     }
     
-    static initialize(initialBalances?:Map<string, AccountDetails>){
+    static initialize(blockDifficulty: string, initialBalances?:Map<string, AccountDetails>){
         const genesisBlock = Block.initialize(0, [], "")
         if (initialBalances){
-            return new Blockchain(  [genesisBlock],initialBalances)
+            return new Blockchain(  [genesisBlock],initialBalances, blockDifficulty)
         }else{
-            return new Blockchain( [genesisBlock],new Map<string, AccountDetails>())
+            return new Blockchain( [genesisBlock],new Map<string, AccountDetails>(), blockDifficulty)
         }
     }
 
@@ -34,6 +36,11 @@ export class Blockchain{
         if(block.prevBlockHash !== prevBlockHash){
             throw new Error(`Last block hash is ${prevBlockHash},
             provided Block height is ${block.height}`)
+        }
+        if(block.hash.slice(0, this.blockDifficulty.length) !==
+                this.blockDifficulty){
+            throw new Error(`Invalid Proof of Work, block hash leading bytes
+             must be ${this.blockDifficulty}, hash provided ${block.hash}`)
         }
 
         for(let i = 0; i< block.data.length; i++){
@@ -77,6 +84,11 @@ export class Blockchain{
             if(block.prevBlockHash !== prevBlockHash){
                 throw new Error(`Block ${i} prevBlockHash should 
                 be ${prevBlockHash}, found${block.prevBlockHash}`)
+            }
+            if(block.hash.slice(0, this.blockDifficulty.length) !==
+            this.blockDifficulty){
+                throw new Error(`Invalid Proof of Work, block hash leading bytes
+                must be ${this.blockDifficulty}, hash provided ${block.hash}`)
             }
             block.verify()
         }

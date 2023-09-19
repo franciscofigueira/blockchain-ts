@@ -21,4 +21,10 @@ describe("Block tests", () => {
         block.height = 1
         expect(() => block.verify()).toThrowError()
     })
+    test("Mined block should have hash first characters equal to difficulty",() =>{
+        const block = Block.initialize(0,[], "prevHash")
+        const difficulty = "ffff"
+        block.mineBlock(difficulty)
+        expect(block.hash.slice(0, difficulty.length)).toBe(difficulty)
+    })
 })
