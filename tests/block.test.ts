@@ -7,7 +7,7 @@ describe("Block tests", () => {
     test("Block should initialize and pass verification", () => {
         const wallet1 =  Wallet.initialize()
         const wallet2 =  Wallet.initialize()
-        const tx =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 0)
+        const tx =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 0,[])
         tx.sign(wallet1)
         const block = Block.initialize(0,[tx], "prevHash")
         expect(block.height).toBe(0)

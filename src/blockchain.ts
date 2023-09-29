@@ -1,4 +1,5 @@
 import { Block } from "./block.js";
+import {VirtualMachine} from "./vm.js"
 
 export type AccountDetails  = {
     balance: number
@@ -8,20 +9,21 @@ export class Blockchain{
     blocks: Block[]
     accounts: Map<string, AccountDetails>
     blockDifficulty: string
-
+    state: Map<number,number>
     constructor( blocks: Block[], accounts:
-            Map<string, AccountDetails>,blockDifficulty: string){
+            Map<string, AccountDetails>,blockDifficulty: string, state: Map<number,number>){
         this.blocks = blocks
         this.accounts = accounts
         this.blockDifficulty = blockDifficulty
+        this.state = state
     }
     
     static initialize(blockDifficulty: string, initialBalances?:Map<string, AccountDetails>){
         const genesisBlock = Block.initialize(0, [], "")
         if (initialBalances){
-            return new Blockchain(  [genesisBlock],initialBalances, blockDifficulty)
+            return new Blockchain(  [genesisBlock],initialBalances, blockDifficulty,new Map<number,number>())
         }else{
-            return new Blockchain( [genesisBlock],new Map<string, AccountDetails>(), blockDifficulty)
+            return new Blockchain( [genesisBlock],new Map<string, AccountDetails>(), blockDifficulty, new Map<number,number>())
         }
     }
 
@@ -67,6 +69,8 @@ export class Blockchain{
             }else{
                 this.accounts.set(tx.to,{nonce: 0, balance: tx.amount})
             }
+            const vm = new VirtualMachine()
+            vm.execute(tx.data,this.state)
         }
 
         this.blocks.push(block)

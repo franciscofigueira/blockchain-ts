@@ -7,17 +7,17 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { floodsub } from '@libp2p/floodsub'
 import { mdns } from '@libp2p/mdns'
-import { mplex } from '@libp2p/mplex'
 import { tcp } from '@libp2p/tcp'
 import { identifyService } from 'libp2p/identify'
-
+import 'dotenv/config'
+import {Instruction} from "./vm.js"
 const createNode = async () => {
     const node = await createLibp2p({
         addresses: {
             listen: ['/ip4/0.0.0.0/tcp/0']
         },
         transports: [tcp()],
-        streamMuxers: [yamux(), mplex()],
+        streamMuxers: [yamux()],
         connectionEncryption: [noise()],
         peerDiscovery: [
             mdns({
@@ -52,7 +52,8 @@ export class Server{
 
     async start(){
         const node = await createNode()
-        node.addEventListener('peer:discovery', (evt) => console.log('Discovered:', evt.detail.id.toString()))
+      
+        node.addEventListener('peer:discovery', (evt) => console.log("\x1b[34m%s\x1b[0m",'Discovered:', evt.detail.id.toString()))
         
         node.services.pubsub.subscribe(TOPICS.block)
         node.services.pubsub.subscribe(TOPICS.chain)
@@ -75,7 +76,7 @@ export class Server{
                     for(let i = 0; i < chain.blocks.length; i++){
                         blocks.push(parseBlock(JSON.stringify(chain.blocks[i])))
                     }
-                    const blockchain = new Blockchain(blocks, chain.accounts, chain.blockDifficulty)
+                    const blockchain = new Blockchain(blocks, chain.accounts, chain.blockDifficulty, chain.state)
                     blockchain.validateChain()
                     if(blockchain.blocks.length > this.blockchain.blocks.length){
                         this.blockchain = blockchain
@@ -90,16 +91,20 @@ export class Server{
         process.stdin.on('data', async data => {
             let stringData = data.toString()
             if(stringData.slice(0,1) === 'b'){
-                console.log('\x1b[36m%s\x1b[0m',"Adding block to chain and transmitting");
+                console.log('\x1b[36m%s\x1b[0m',"Adding block to chain and transmitting on P2P network");
                 let array = stringData.split(" ")
                 console.log('\x1b[36m%s\x1b[0m','Sent Block on P2P network',
                             await node.services.pubsub.publish(TOPICS.block, this.addAndTransmitBlock(array)))
             }  else if(stringData.slice(0,1) === 'c'){
-                console.log('\x1b[32m%s\x1b[0m',"Transamitting chain over p2p network")
+                console.log('\x1b[32m%s\x1b[0m',"Transmitting chain over p2p network")
                 console.log('\x1b[32m%s\x1b[0m',"Sent Local Blockchain on P2P network",
                             await node.services.pubsub.publish(TOPICS.chain, Buffer.from(JSON.stringify(this.blockchain,replacer))))
             } else if(stringData.slice(0,1) === 'p'){
                 console.log('\x1b[33m%s\x1b[0m',"Printing Local Blockchain \n",this.blockchain)
+            } else if(stringData.slice(0,1) === 'v'){
+                console.log('\x1b[35m%s\x1b[0m',"Adding block with transaction with VM instructions to chain and transmitting on P2P network\n")
+                console.log('\x1b[35m%s\x1b[0m',"Sent Block on P2P network \n",
+                await node.services.pubsub.publish(TOPICS.block, this.addAndTransmitBlockWithCode()))
             } else{
                 console.log(`Invalid command you've typed ${data.toString()}`);
             }
@@ -109,7 +114,7 @@ export class Server{
         let tx: Transaction | undefined = undefined
         if(data[1] && data[2] && data[3]&& data[4]){
             try {
-                tx = Transaction.initialize(this.wallets[Number(data[1])].pubKey, this.wallets[data[2]].pubKey, Number(data[3]), Number(data[4]))
+                tx = Transaction.initialize(this.wallets[Number(data[1])].pubKey, this.wallets[data[2]].pubKey, Number(data[3]), Number(data[4]),[])
                 tx.sign(this.wallets[Number(data[1])])
             } catch (error) {
                 console.log(error)
@@ -131,6 +136,22 @@ export class Server{
             console.log(error)
         }
     }
+
+    addAndTransmitBlockWithCode(){
+        const instructions:Instruction[] = JSON.parse(process.env.CODE)
+        const tx = Transaction.initialize(this.wallets[0].pubKey, "", 0, 0,instructions)
+        tx.sign(this.wallets[0])
+        const height = this.blockchain.blocks.length
+        const prevHash = this.blockchain.blocks[height-1].hash
+        const block = Block.initialize(height,[tx],prevHash)
+        block.mineBlock(this.blockchain.blockDifficulty)
+        try {
+            this.blockchain.addBlock(block)
+            return Buffer.from(JSON.stringify(block))
+        } catch (error) {
+            console.log(error)
+        }
+    }
 }
 
 export function parseBlock(msg: string): Block{
@@ -139,7 +160,7 @@ export function parseBlock(msg: string): Block{
         const block: Block = new Block(parsedObject.height,parsedObject.data,parsedObject.prevBlockHash, parsedObject.nonce, parsedObject.hash)
         for (let i = 0; i< block.data.length; i++){
             let tx = block.data[i]
-            block.data[i] =  new Transaction(tx.from, tx.to, tx.amount, tx.nonce,tx.hash, tx.signature)
+            block.data[i] =  new Transaction(tx.from, tx.to, tx.amount, tx.nonce, tx.data ,tx.hash, tx.signature)
         }
         block.verify()
         console.log("block received",block)

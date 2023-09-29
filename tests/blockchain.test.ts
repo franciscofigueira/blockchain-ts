@@ -3,6 +3,7 @@ import {Blockchain, AccountDetails} from "../src/blockchain.js";
 import {Block} from "../src/block.js";
 import {Transaction} from "../src/transaction.js"
 import {Wallet} from "../src/wallet.js";
+import {Instruction, OPCODES} from "../src/vm.js"
 
 describe("Blockchain tests", () => {
     test('Blockchain should correctly initalize', () => {
@@ -18,9 +19,9 @@ describe("Blockchain tests", () => {
         const balances = new Map<string,AccountDetails>()
         balances.set(wallet1.pubKey, {balance: 100, nonce: 0})
         const blockchain = Blockchain.initialize("",balances)
-        const tx =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 0)
+        const tx =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 0, [])
         tx.sign(wallet1)
-        const tx2 =  Transaction.initialize(wallet2.pubKey, wallet3.pubKey, 5, 0)
+        const tx2 =  Transaction.initialize(wallet2.pubKey, wallet3.pubKey, 5, 0, [])
         tx2.sign(wallet2)
         const block = Block.initialize(1,[tx,tx2],blockchain.blocks[0].hash)
         blockchain.addBlock(block)
@@ -42,10 +43,10 @@ describe("Blockchain tests", () => {
         const balances = new Map<string,AccountDetails>()
         balances.set(wallet1.pubKey, {balance: 100, nonce: 0})
         const blockchain = Blockchain.initialize("",balances)
-        const txInvalidBalance =  Transaction.initialize(wallet2.pubKey, wallet1.pubKey, 10, 0)
+        const txInvalidBalance =  Transaction.initialize(wallet2.pubKey, wallet1.pubKey, 10, 0, [])
         txInvalidBalance.sign(wallet2)
         const blockInvalidBalance = Block.initialize(1,[txInvalidBalance],blockchain.blocks[0].hash)
-        const txInvalidNonce =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 1)
+        const txInvalidNonce =  Transaction.initialize(wallet1.pubKey, wallet2.pubKey, 10, 1, [])
         txInvalidNonce.sign(wallet1)
         const blockInvalidNonce = Block.initialize(1,[txInvalidNonce],blockchain.blocks[0].hash)
         expect(() => blockchain.addBlock(blockInvalidBalance)).toThrowError()
@@ -59,5 +60,26 @@ describe("Blockchain tests", () => {
         block.mineBlock(difficulty)
         blockchain.addBlock(block)
         blockchain.validateChain()
+    })
+    test('Blockchain state should alter on executing VM code',() =>{
+        const difficulty = "ffff"
+        const wallet = Wallet.initialize()
+        const balances = new Map<string,AccountDetails>()
+        balances.set(wallet.pubKey, {balance: 100, nonce: 0})
+        const blockchain = Blockchain.initialize(difficulty,balances)
+        const code: Instruction[] = [
+            { type: OPCODES.PUSH, value: 5 },
+            { type: OPCODES.PUSH, value: 7 },
+            { type: OPCODES.ADD },
+            { type: OPCODES.PUSH, value: 3 },
+            { type: OPCODES.MULTIPLY },
+            { type: OPCODES.STORE, key: 5  },
+            ];
+        const tx = Transaction.initialize(wallet.pubKey,'',0,0,code)
+        tx.sign(wallet)
+        const block = Block.initialize(1,[tx],blockchain.blocks[0].hash)
+        block.mineBlock(difficulty)
+        blockchain.addBlock(block)
+        expect(blockchain.state.get(5)).toBe(36)
     })
 })
